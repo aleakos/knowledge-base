@@ -1,0 +1,29 @@
+{
+  "name": "knowledge-base",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "LLM-powered personal knowledge base with MCP server",
+  "main": "dist/index.js",
+  "bin": {
+    "kb": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "ingest": "node dist/cli.js ingest",
+    "index": "node dist/cli.js index",
+    "serve": "node dist/index.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "@retorquere/bibtex-parser": "^8.0.12",
+    "commander": "^13.1.0",
+    "tslib": "^2.8.1",
+    "yaml": "^2.7.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.2",
+    "typescript": "^5.8.3"
+  }
+}

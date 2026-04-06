@@ -1,0 +1,6 @@
+node_modules/
+dist/
+kb/raw/pdfs/
+kb/raw/text/
+*.pdf
+.DS_Store
