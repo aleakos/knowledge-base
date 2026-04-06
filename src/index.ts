@@ -303,6 +303,119 @@ server.tool(
   }
 );
 
+// --- graph tools ---
+
+import { getDb } from "./graph/db.js";
+import { getNeighbors, findSharedConnections, getStats, searchNodes } from "./graph/query.js";
+
+server.tool(
+  "kb_graph_stats",
+  "Get knowledge graph statistics: node/edge counts by type, top concepts, top authors.",
+  {},
+  async () => {
+    const db = getDb();
+    const stats = getStats({ db });
+    const lines: string[] = [];
+    lines.push("## Knowledge Graph Stats\n");
+    lines.push("### Nodes");
+    for (const [type, count] of Object.entries(stats.nodes)) {
+      lines.push(`- ${type}: ${count}`);
+    }
+    lines.push("\n### Edges");
+    for (const [rel, count] of Object.entries(stats.edges)) {
+      lines.push(`- ${rel}: ${count}`);
+    }
+    lines.push("\n### Top Concepts");
+    for (const c of stats.topConcepts) {
+      lines.push(`- ${c.label} (${c.connections} connections)`);
+    }
+    lines.push("\n### Top Authors");
+    for (const a of stats.topAuthors) {
+      lines.push(`- ${a.label} (${a.papers} papers)`);
+    }
+    return textResult(lines.join("\n"));
+  }
+);
+
+server.tool(
+  "kb_graph_neighbors",
+  "Get all neighbors of a node in the knowledge graph. Returns connected nodes and their relationships.",
+  {
+    node_id: z.string().describe("Node ID (e.g. 'source:wang-2006-...', 'concept:engineering/beam-theory', 'author:simo-jc')"),
+    relation: z.string().optional().describe("Filter by relation type (authored_by, tagged_with, contains_formula, uses_method, related_to, collaborates_with)"),
+    direction: z.enum(["outgoing", "incoming", "both"]).optional().describe("Edge direction (default: both)"),
+  },
+  async (args) => {
+    const db = getDb();
+    const results = getNeighbors({
+      db,
+      nodeId: args.node_id,
+      relation: args.relation,
+      direction: args.direction,
+    });
+
+    if (results.length === 0) {
+      return textResult(`No neighbors found for: ${args.node_id}`);
+    }
+
+    const text = results
+      .map((r) => `[${r.node.type}] **${r.node.label}** (${r.node.id})\n  ← ${r.edge.relation} (weight: ${r.edge.weight})`)
+      .join("\n\n");
+
+    return textResult(`${results.length} neighbors of ${args.node_id}:\n\n${text}`);
+  }
+);
+
+server.tool(
+  "kb_graph_connections",
+  "Find shared connections between two nodes. Shows what concepts, authors, or methods two sources have in common.",
+  {
+    node_id_1: z.string().describe("First node ID"),
+    node_id_2: z.string().describe("Second node ID"),
+  },
+  async (args) => {
+    const db = getDb();
+    const results = findSharedConnections({
+      db,
+      nodeId1: args.node_id_1,
+      nodeId2: args.node_id_2,
+    });
+
+    if (results.length === 0) {
+      return textResult(`No shared connections between ${args.node_id_1} and ${args.node_id_2}`);
+    }
+
+    const text = results
+      .map((r) => `[${r.node.type}] **${r.node.label}** (${r.node.id})\n  Relations: ${r.relations.join(", ")}`)
+      .join("\n\n");
+
+    return textResult(`${results.length} shared connections:\n\n${text}`);
+  }
+);
+
+server.tool(
+  "kb_graph_search",
+  "Search for nodes in the knowledge graph by label. Finds sources, authors, concepts, formulas, or methods.",
+  {
+    query: z.string().describe("Search term to match against node labels"),
+    type: z.enum(["source", "author", "concept", "formula", "method"]).optional().describe("Filter by node type"),
+  },
+  async (args) => {
+    const db = getDb();
+    const results = searchNodes({ db, query: args.query, type: args.type });
+
+    if (results.length === 0) {
+      return textResult(`No nodes matching "${args.query}"`);
+    }
+
+    const text = results
+      .map((r) => `[${r.type}] **${r.label}** (${r.id})`)
+      .join("\n");
+
+    return textResult(`${results.length} nodes matching "${args.query}":\n\n${text}`);
+  }
+);
+
 // --- start ---
 
 async function main() {

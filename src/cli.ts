@@ -3,6 +3,9 @@ import { Command } from "commander";
 import { resolve } from "node:path";
 import { getIngester } from "./ingest/registry.js";
 import { generateIndices } from "./index-gen/index-generator.js";
+import { getDb, closeDb } from "./graph/db.js";
+import { populateGraph } from "./graph/populate.js";
+import { getStats } from "./graph/query.js";
 
 const KB_DIR = resolve(import.meta.dirname, "..", "kb");
 const SOURCES_DIR = resolve(KB_DIR, "raw", "sources");
@@ -65,6 +68,44 @@ program
   .description("Regenerate index files")
   .action(() => {
     generateIndices({ sourcesDir: SOURCES_DIR, indexDir: INDEX_DIR });
+  });
+
+const CONTENT_DIR = resolve(KB_DIR, "content");
+
+program
+  .command("graph")
+  .description("Build or rebuild the knowledge graph")
+  .action(() => {
+    const db = getDb();
+    process.stderr.write("Building knowledge graph...\n");
+
+    const result = populateGraph({
+      db,
+      sourcesDir: SOURCES_DIR,
+      contentDir: CONTENT_DIR,
+    });
+
+    process.stderr.write(`Graph built: ${result.nodes} nodes, ${result.edges} edges\n`);
+
+    const stats = getStats({ db });
+    process.stderr.write(`\nNode types:\n`);
+    for (const [type, count] of Object.entries(stats.nodes)) {
+      process.stderr.write(`  ${type}: ${count}\n`);
+    }
+    process.stderr.write(`\nEdge types:\n`);
+    for (const [relation, count] of Object.entries(stats.edges)) {
+      process.stderr.write(`  ${relation}: ${count}\n`);
+    }
+    process.stderr.write(`\nTop concepts:\n`);
+    for (const c of stats.topConcepts) {
+      process.stderr.write(`  ${c.label} (${c.connections})\n`);
+    }
+    process.stderr.write(`\nTop authors:\n`);
+    for (const a of stats.topAuthors) {
+      process.stderr.write(`  ${a.label} (${a.papers} papers)\n`);
+    }
+
+    closeDb();
   });
 
 program.parse();
